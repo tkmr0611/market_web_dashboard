@@ -64,7 +64,12 @@ function render() {
     app.replaceChildren(el("p", { class: "message" }, text));
     return;
   }
-  app.replaceChildren(...state.data.countries.map(renderCountry).filter(Boolean));
+  const sections = new Map(); // section → indicators（初出順）
+  for (const ind of state.data.indicators) {
+    if (!sections.has(ind.section)) sections.set(ind.section, []);
+    sections.get(ind.section).push(ind);
+  }
+  app.replaceChildren(...[...sections].map(([name, items]) => renderSection(name, items)));
   // 大きいチャートは表示幅が決まってから描く
   for (const box of app.querySelectorAll(".detail-chart")) drawDetail(box);
 }
@@ -86,10 +91,7 @@ function renderUpdated() {
   node.classList.toggle("stale", stale || Boolean(state.error));
 }
 
-function renderCountry(country) {
-  const items = state.data.indicators.filter((ind) => ind.country === country.code);
-  if (!items.length) return null;
-
+function renderSection(name, items) {
   const groups = new Map(); // category → indicators（初出順）
   for (const ind of items) {
     if (!groups.has(ind.category)) groups.set(ind.category, []);
@@ -97,7 +99,8 @@ function renderCountry(country) {
   }
   const tbody = el("tbody");
   for (const [category, inds] of groups) {
-    tbody.append(el("tr", { class: "cat" }, el("td", { colspan: 6 }, category)));
+    // 見出しと同じ小見出し（「雇用」カードの「雇用」など）は出さない
+    if (category !== name) tbody.append(el("tr", { class: "cat" }, el("td", { colspan: 6 }, category)));
     for (const ind of inds) tbody.append(...renderRows(ind));
   }
 
@@ -113,8 +116,8 @@ function renderCountry(country) {
   );
   return el(
     "section",
-    { class: "country" },
-    el("h2", {}, country.name, el("span", { class: "code" }, country.code)),
+    { class: "section" },
+    el("h2", {}, name),
     el("table", {}, el("thead", {}, head), tbody),
   );
 }

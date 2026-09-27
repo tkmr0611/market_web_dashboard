@@ -40,14 +40,14 @@ python -m http.server 8000 -d site   # 表示用のサーバーを起動する
 
 ## 指標を増やす
 
-`indicators.toml` に `[[indicators]]` ブロックを 1 つ足すだけです。上から書いた順に表示されます。国を増やすときは `[countries]` にも 1 行足します。
+`indicators.toml` に `[[indicators]]` ブロックを 1 つ足すだけです。上から書いた順に表示されます。国の区別はカードではなく名前で付けます（例: `"米国 10年"`）。
 
 ```toml
 [[indicators]]
 id = "vix"                 # 一意な ID
 name = "VIX"               # 表示名
-country = "US"             # [countries] のキー
-category = "株価指数"       # 国カード内の小見出し
+section = "マーケット"      # カードの見出し
+category = "ボラティリティ" # カード内の小見出し
 source = "yahoo"           # yahoo / fred / mof / mof_tb / boj / ecb / spread
 symbol = "^VIX"            # 取得元での識別子
 decimals = 2               # 小数点以下の桁数
@@ -72,8 +72,8 @@ change = "pct"             # pct（株価・為替）/ bp（金利）/ diff（�
 ```toml
 [[indicators]]
 id = "jp_gap_10y5y"
-name = "10年 − 5年"
-country = "JP"
+name = "日本 10年−5年"
+section = "金利"
 category = "イールドギャップ"
 source = "spread"
 symbol = "国債10年 − 国債5年"

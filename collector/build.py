@@ -19,7 +19,7 @@ from .sources import SOURCES
 ROOT = Path(__file__).resolve().parents[1]
 JST = dt.timezone(dt.timedelta(hours=9), "JST")
 META_DEFAULTS = {"unit": "", "decimals": 2, "change": "pct", "note": ""}
-META_KEYS = ("id", "name", "country", "category", "symbol", *META_DEFAULTS)
+META_KEYS = ("id", "name", "section", "category", "symbol", *META_DEFAULTS)
 
 log = logging.getLogger("collector")
 
@@ -62,7 +62,6 @@ def main(argv: list[str] | None = None) -> int:
 
     payload = {
         "generated_at": now_jst(),
-        "countries": [{"code": code, "name": name} for code, name in config["countries"].items()],
         "indicators": indicators,
     }
     args.out.parent.mkdir(parents=True, exist_ok=True)

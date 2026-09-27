@@ -57,7 +57,6 @@ docs/spec.md             このドキュメント
 | キー | 型 | 説明 |
 |---|---|---|
 | `history_years` | 数値 | チャート用に遡って取得する年数（既定 5）。取得開始日は `今日 − 365.25 × history_years 日` |
-| `[countries]` | 表 | `国コード = "表示名"`。書いた順に国カードが並ぶ |
 | `[[indicators]]` | 配列 | 指標の定義。上から順に表示される |
 
 ### `[[indicators]]` のキー
@@ -66,8 +65,8 @@ docs/spec.md             このドキュメント
 |---|---|---|---|
 | `id` | ○ | | 一意な ID。前回データの引き継ぎや、画面で開いている行の管理に使う |
 | `name` | ○ | | 表示名 |
-| `country` | ○ | | `[countries]` のキー。この国のカードに表示される |
-| `category` | ○ | | 国カード内の小見出し。初めて出てきた順に並ぶ |
+| `section` | ○ | | カードの見出し（`マーケット` / `金利` / `雇用` など）。初めて出てきた順にカードが並ぶ |
+| `category` | ○ | | カード内の小見出し。初めて出てきた順に並ぶ。国の区別は `name` に書く（例: `日本 10年`） |
 | `source` | ○ | | `yahoo` / `fred` / `mof` / `mof_tb` / `boj` / `ecb` / `spread`（`collector/sources/__init__.py` の `SOURCES` のキー） |
 | `symbol` | ○ | | 取得元での識別子（4 章の各取得元を参照）。`spread` では画面に出す説明文 |
 | `decimals` | | `2` | 小数点以下の桁数。収集時の丸めと表示の両方に使う |
@@ -211,11 +210,10 @@ python -m collector [--config PATH] [--out PATH] [--previous URL_OR_PATH]
 ```jsonc
 {
   "generated_at": "2026-09-27T10:17:42+09:00",   // 生成時刻（JST）
-  "countries": [{ "code": "JP", "name": "日本" }, ...],
   "indicators": [
     {
       // indicators.toml から（既定値を補ったもの）
-      "id": "nikkei225", "name": "日経平均株価", "country": "JP", "category": "株価指数",
+      "id": "nikkei225", "name": "日経平均株価", "section": "マーケット", "category": "株価指数",
       "symbol": "^N225", "unit": "", "decimals": 2, "change": "pct", "note": "",
       // 取得元から
       "source": "Yahoo Finance", "source_url": "https://finance.yahoo.com/quote/%5EN225",
@@ -242,7 +240,7 @@ python -m collector [--config PATH] [--out PATH] [--previous URL_OR_PATH]
 ### 画面構成
 
 - **ヘッダー**: タイトル、最終更新時刻（「○分前」付き）、チャート期間の切り替え（1M / 3M / 1Y / 5Y）
-- **国カード**: `countries` の順に 1 枚ずつ。カード内は `category` ごとに小見出しを付けて並べる
+- **カード**: `section` ごとに 1 枚（初出順）。カード内は `category` ごとに小見出しを付けて並べる
 - **各行の列**: 指標名 / 現在値 / 前回比 / 期間変化 / 推移（スパークライン） / 日付
 - **詳細**: 行をクリックすると、その下に軸付きの大きいチャート、出典リンク、最終取得時刻、注記、エラーを表示する。もう一度クリックすると閉じる
 
