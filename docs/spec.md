@@ -4,7 +4,7 @@
 
 ## 1. 概要
 
-日米の株価指数・国債利回り・失業率・為替を 1 画面で見るための、自分用のダッシュボードです。
+日本・米国・欧州の株価指数・ボラティリティ・政策金利・国債利回り・イールドギャップ・失業率・為替を 1 画面で見るための、自分用のダッシュボードです。
 サーバーを持たず、無料の範囲で「データ収集 → 静的サイトの生成 → 公開」を自動で回します。
 
 ```
@@ -13,7 +13,9 @@ GitHub Actions（毎時）                          GitHub Pages
 │ python -m collector         │  site/ を     │ index.html / app.js  │
 │  ├ Yahoo Finance (yfinance) │  デプロイ ──▶ │ data/dashboard.json  │──▶ ブラウザ
 │  ├ FRED (CSV)               │               └──────────────────────┘
-│  └ 財務省 国債金利 (CSV)      │
+│  ├ 財務省 国債金利・TB 入札   │
+│  ├ 日本銀行 (API)            │
+│  └ ECB (API)                │
 └─────────────────────────────┘
 ```
 
@@ -28,7 +30,7 @@ GitHub Actions（毎時）                          GitHub Pages
 
 ```
 indicators.toml          表示する指標の一覧（ここを編集して拡張）
-requirements.txt         yfinance / pandas / requests
+requirements.txt         yfinance / pandas / requests / xlrd
 collector/
   __main__.py            `python -m collector` の入口
   build.py               取得 → 整形 → JSON 書き出し
@@ -37,6 +39,10 @@ collector/
     yahoo.py             Yahoo Finance（yfinance）
     fred.py              FRED
     mof.py               財務省 国債金利情報
+    mof_tb.py            財務省 国庫短期証券（T-Bill）の入札結果
+    boj.py               日本銀行 時系列統計 API
+    ecb.py               ECB Data Portal API
+    spread.py            2 系列の差（イールドギャップ）
 site/
   index.html, app.js, style.css
   data/dashboard.json    収集結果（自動生成・コミットしない）
@@ -62,13 +68,14 @@ docs/spec.md             このドキュメント
 | `name` | ○ | | 表示名 |
 | `country` | ○ | | `[countries]` のキー。この国のカードに表示される |
 | `category` | ○ | | 国カード内の小見出し。初めて出てきた順に並ぶ |
-| `source` | ○ | | `yahoo` / `fred` / `mof`（`collector/sources/__init__.py` の `SOURCES` のキー） |
-| `symbol` | ○ | | 取得元での識別子。Yahoo のティッカー、FRED の系列 ID、財務省 CSV の列名（`2年` など） |
+| `source` | ○ | | `yahoo` / `fred` / `mof` / `mof_tb` / `boj` / `ecb` / `spread`（`collector/sources/__init__.py` の `SOURCES` のキー） |
+| `symbol` | ○ | | 取得元での識別子（4 章の各取得元を参照）。`spread` では画面に出す説明文 |
 | `decimals` | | `2` | 小数点以下の桁数。収集時の丸めと表示の両方に使う |
 | `change` | | `pct` | 前回比の表し方（下表） |
 | `unit` | | `""` | 値の後ろに付ける単位 |
 | `note` | | `""` | 詳細欄に出す注記 |
 | `weekends` | | `false` | Yahoo のみ。`true` で土日のデータを残す（暗号資産など） |
+| `legs` | | | `spread` のみ。差を取る 2 系列を `{ source = ..., symbol = ... }` で書く（1 本目 − 2 本目） |
 
 `change` の種類:
 
@@ -86,13 +93,26 @@ docs/spec.md             このドキュメント
 |---|---|---|---|
 | 日本 | 株価指数 | 日経平均株価 | Yahoo `^N225` |
 | 日本 | 株価指数 | TOPIX 連動 ETF (1306) | Yahoo `1306.T` |
-| 日本 | 国債利回り | 国債 2年 / 10年 / 30年 | 財務省 `2年` / `10年` / `30年` |
+| 日本 | ボラティリティ | 日経平均 VI | Yahoo `^NKVI.OS` |
+| 日本 | 政策金利 | 無担保コール O/N 物 | 日銀 `FM01/STRDCLUCON` |
+| 日本 | 国債利回り | 国庫短期証券 3か月 | 財務省 TB 入札 `3か月` |
+| 日本 | 国債利回り | 国債 1年 / 2年 / 10年 / 30年 | 財務省 `1年` / `2年` / `10年` / `30年` |
+| 日本 | イールドギャップ | 10年 − 3か月 / 10年 − 2年 | spread（財務省 `10年` − TB `3か月` / `10年` − `2年`） |
 | 日本 | 雇用 | 完全失業率（季調） | FRED `LRUNTTTTJPM156S` |
 | 日本 | 為替 | ドル/円 | Yahoo `JPY=X` |
 | 米国 | 株価指数 | S&P 500 / NASDAQ 総合 / NY ダウ | Yahoo `^GSPC` / `^IXIC` / `^DJI` |
-| 米国 | 国債利回り | 国債 2年 | FRED `DGS2` |
+| 米国 | ボラティリティ | VIX | Yahoo `^VIX` |
+| 米国 | 政策金利 | FF 金利 誘導目標（上限） | FRED `DFEDTARU` |
+| 米国 | 国債利回り | 国債 3か月 / 1年 / 2年 | FRED `DGS3MO` / `DGS1` / `DGS2` |
 | 米国 | 国債利回り | 国債 10年 / 30年 | Yahoo `^TNX` / `^TYX` |
+| 米国 | イールドギャップ | 10年 − 3か月 / 10年 − 2年 | FRED `T10Y3M` / `T10Y2Y` |
 | 米国 | 雇用 | 失業率 | FRED `UNRATE` |
+| 欧州 | 株価指数 | ユーロ・ストックス 50 / DAX | Yahoo `^STOXX50E` / `^GDAXI` |
+| 欧州 | 政策金利 | ECB 預金ファシリティ金利 | ECB `FM/D.U2.EUR.4F.KR.DFR.LEV` |
+| 欧州 | イールドギャップ | 10年 − 3か月 / 10年 − 2年 | spread（ECB の AAA 格国債イールドカーブ `SR_10Y` − `SR_3M` / `SR_2Y`） |
+| 欧州 | 雇用 | 失業率（ユーロ圏・季調） | ECB `LFSI/M.I9.S.UNEHRT.TOTAL0.15_74.T` |
+
+VIX と日経平均 VI は、前回比を `diff`（ポイント差）で表示しています。`pct` にすると Yahoo の外れ値除去がかかり、急騰した日が消えるおそれがあるためです。
 
 ## 4. 収集（`collector/`）
 
@@ -135,6 +155,7 @@ python -m collector [--config PATH] [--out PATH] [--previous URL_OR_PATH]
 | `LABEL` | 画面に出す出典名 |
 | `fetch(spec, start) -> pandas.Series` | index = 日付、値 = float の Series を返す |
 | `link(spec) -> str` | 出典ページの URL |
+| `label(spec) -> str`（任意） | 出典名が spec によって変わる場合に `LABEL` の代わりに使う（`spread`） |
 
 **Yahoo Finance（`yahoo.py`）**
 
@@ -157,6 +178,33 @@ python -m collector [--config PATH] [--out PATH] [--previous URL_OR_PATH]
 - `-`（その年限の国債が未発行）は欠損として扱う
 - 表は 1 回の実行中キャッシュして、2 年・10 年・30 年で使い回す
 - 列名が無ければ、使える列名の一覧を付けてエラーにする
+
+**財務省 国庫短期証券の入札結果（`mof_tb.py`）**
+
+- `symbol` は年限（`3か月` / `6か月` / `1年`）。値は入札ごとの平均落札利回りで、3 か月物はほぼ毎週 1 回
+- 過去分は Excel（`fb_historical_data.xls`、年度ごとのシート）から読む。年限は発行日から償還日までの日数で見分ける（3 か月 = 80〜100 日など）
+- Excel は月 1 回程度しか更新されないので、それより新しい分は直近 3 か月の入札カレンダー（`calendar/YYMM.htm`）から該当年限の入札結果ページを辿り、「募入平均利回り」を読む
+- `.xls` を読むために `xlrd` を使う
+
+**日本銀行（`boj.py`）**
+
+- 時系列統計データ検索サイトの API（`/api/v1/getDataCode`）を使う。登録・キー不要
+- `symbol` は `DB名/系列コード`（例: `FM01/STRDCLUCON`）
+- 値が `null`（休日）の行は捨てる。件数が多いと分割して返ってくるので、`NEXTPOSITION` があれば続きを取る
+- コールレートは API への反映が 1 週間ほど遅れる
+
+**ECB（`ecb.py`）**
+
+- ECB Data Portal の API（`data-api.ecb.europa.eu`）から CSV を取る。登録・キー不要
+- `symbol` は `データセット/系列キー`（例: `FM/D.U2.EUR.4F.KR.DFR.LEV`）
+- 同じ系列（イールドカーブの 10 年など）をイールドギャップで何度も使うので、1 回の実行中はキャッシュする
+- 預金ファシリティ金利は土日も含む日次の系列なので、日付が週末になることがある
+
+**2 系列の差（`spread.py`）**
+
+- `legs` に書いた 2 つの指定を、それぞれの取得元で取り、1 本目 − 2 本目を返す
+- 日付は 1 本目に合わせ、2 本目は直近の値を引き継ぐ（週次の TB 利回りと日次の 10 年債の差も取れる）
+- 出典名は 2 つの取得元の名前をつなげたもの、出典リンクは 1 本目のもの
 
 ## 5. 出力 JSON（`site/data/dashboard.json`）
 
@@ -253,6 +301,11 @@ python -m collector [--config PATH] [--out PATH] [--previous URL_OR_PATH]
 | 米 2 年債 | FRED | Yahoo に 2 年債が無いため。1 営業日遅れる |
 | 日本の失業率 | FRED（OECD） | 総務省の公表より 1 か月ほど遅れる。すぐ知りたい場合は e-Stat API（無料登録）の取得元を足す |
 | 米失業率 | FRED | 雇用統計の発表当日に反映される |
+| 米 3 か月 / 1 年債、イールドギャップ、FF 金利 | FRED | 1 営業日遅れる |
+| 日本の 3 か月物 | 財務省（TB 入札） | 入札ごと（ほぼ週次）の値。市場の日々の利回りではない |
+| 日本の政策金利 | 日本銀行 | 誘導目標そのものではなく、無担保コール O/N 物の実績値。1 週間ほど遅れる |
+| 欧州のイールドギャップ | ECB | 個別国の国債ではなく、ECB が推計する AAA 格国債のイールドカーブ。1 営業日遅れる |
+| 欧州の失業率 | ECB（Eurostat） | ユーロ圏 20 か国。公表は 1 か月ほど遅れる |
 
 米 10 年債を終値ベースでそろえたい場合は、`source = "fred"`、`symbol = "DGS10"`、`decimals = 2` に変えます。
 

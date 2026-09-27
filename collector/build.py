@@ -43,7 +43,8 @@ def main(argv: list[str] | None = None) -> int:
     for spec in config["indicators"]:
         source = SOURCES[spec["source"]]
         meta = {**META_DEFAULTS, **{k: spec[k] for k in META_KEYS if k in spec}}
-        meta |= {"source": source.LABEL, "source_url": source.link(spec)}
+        label = source.label(spec) if hasattr(source, "label") else source.LABEL
+        meta |= {"source": label, "source_url": source.link(spec)}
         try:
             summary = summarize(retry(lambda: source.fetch(spec, start)), start, meta["decimals"])
             indicators.append(meta | summary | {"error": None})

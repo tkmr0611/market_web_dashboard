@@ -1,6 +1,6 @@
 # Market Dashboard
 
-日米の株価指数・国債利回り・失業率・為替を一覧表示する、自分用のダッシュボードです。
+日本・米国・欧州の株価指数・ボラティリティ・政策金利・国債利回り・イールドギャップ・失業率・為替を一覧表示する、自分用のダッシュボードです。
 GitHub Actions が 1 時間ごとにデータを集め、GitHub Pages に公開します。
 
 仕組みや各部品の詳しい仕様は [docs/spec.md](docs/spec.md) を参照してください。
@@ -48,7 +48,7 @@ id = "vix"                 # 一意な ID
 name = "VIX"               # 表示名
 country = "US"             # [countries] のキー
 category = "株価指数"       # 国カード内の小見出し
-source = "yahoo"           # yahoo / fred / mof
+source = "yahoo"           # yahoo / fred / mof / mof_tb / boj / ecb / spread
 symbol = "^VIX"            # 取得元での識別子
 decimals = 2               # 小数点以下の桁数
 change = "pct"             # pct（株価・為替）/ bp（金利）/ diff（失業率など）
@@ -60,9 +60,31 @@ change = "pct"             # pct（株価・為替）/ bp（金利）/ diff（�
 
 | `source` | 探し方 | 例 |
 |---|---|---|
-| `yahoo` | https://finance.yahoo.com で検索 | ユーロ/円 `EURJPY=X`、金先物 `GC=F`、DAX `^GDAXI` |
+| `yahoo` | https://finance.yahoo.com で検索 | ユーロ/円 `EURJPY=X`、金先物 `GC=F`、日経平均VI `^NKVI.OS` |
 | `fred` | https://fred.stlouisfed.org で検索 | 米 CPI `CPIAUCSL`、FF 金利 `DFF` |
 | `mof` | 財務省の国債金利の列名 | `1年`、`5年`、`20年`、`40年` |
+| `mof_tb` | 財務省の国庫短期証券の年限 | `3か月`、`6か月`、`1年` |
+| `boj` | https://www.stat-search.boj.or.jp で系列を探し、`DB名/系列コード` で書く | 無担保コール O/N `FM01/STRDCLUCON` |
+| `ecb` | https://data.ecb.europa.eu で系列を探し、系列キーの先頭のデータセット名を `/` で区切る | 預金ファシリティ金利 `FM/D.U2.EUR.4F.KR.DFR.LEV` |
+
+2 つの系列の差（イールドギャップなど）は `source = "spread"` にして、`legs` に上の指定を 2 つ書きます（1 本目 − 2 本目）。`symbol` は画面に出す説明です。
+
+```toml
+[[indicators]]
+id = "jp_gap_10y5y"
+name = "10年 − 5年"
+country = "JP"
+category = "イールドギャップ"
+source = "spread"
+symbol = "国債10年 − 国債5年"
+legs = [
+  { source = "mof", symbol = "10年" },
+  { source = "mof", symbol = "5年" },
+]
+unit = "%"
+decimals = 3
+change = "bp"
+```
 
 追加したら、上の「ローカルで動かす」の手順で表示を確認してから push します。push すると自動で公開されます。
 
