@@ -4,3 +4,6 @@ __pycache__/
 
 # 収集結果は GitHub Actions で毎回作り直すのでコミットしない
 site/data/*.json
+
+# Claude Code のローカル設定（プレビュー用など）
+.claude/
