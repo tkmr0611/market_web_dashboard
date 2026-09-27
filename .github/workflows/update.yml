@@ -1,0 +1,61 @@
+name: update-dashboard
+
+on:
+  schedule:
+    - cron: "17 * * * *" # 毎時 17 分（UTC 基準）。GitHub 側の混雑で数分〜数十分遅れることがある
+  workflow_dispatch: # Actions 画面の「Run workflow」で手動実行
+  push:
+    branches: [main] # 画面や設定を直して push したら即反映
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+  actions: write # 下の keepalive 用
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - id: pages
+        uses: actions/configure-pages@v5
+
+      # 取得に失敗した指標は、公開中のサイトにある前回の JSON から引き継ぐ
+      - name: Collect data
+        run: python -m collector --previous "${{ steps.pages.outputs.base_url }}/data/dashboard.json"
+
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: site
+
+      # 公開リポジトリは 60 日間動きが無いと定期実行が自動停止されるので、ワークフローを有効化し直しておく
+      - name: Keep schedule alive
+        if: github.event_name == 'schedule'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/update.yml/enable"
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
